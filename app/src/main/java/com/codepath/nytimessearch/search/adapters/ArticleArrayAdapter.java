@@ -36,7 +36,12 @@ public class ArticleArrayAdapter extends ArrayAdapter<Article> {
 
         String thumbnail = article.getThumbNail();
         if (!TextUtils.isEmpty(thumbnail)) {
-            Picasso.with(getContext()).load(thumbnail).into(imageView);
+            Picasso.with(getContext())
+                    .load(thumbnail)
+                    .fit()
+                    .centerInside()
+                    .placeholder(R.drawable.placeholder)
+                    .into(imageView);
         }
         return convertView;
     }

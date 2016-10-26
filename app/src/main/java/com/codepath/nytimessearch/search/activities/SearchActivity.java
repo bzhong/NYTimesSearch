@@ -2,18 +2,22 @@ package com.codepath.nytimessearch.search.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.SearchView;
+import android.support.v7.widget.SearchView.OnQueryTextListener;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.GridView;
+import android.widget.Toast;
 
 import com.codepath.nytimessearch.R;
 import com.codepath.nytimessearch.search.adapters.ArticleArrayAdapter;
+import com.codepath.nytimessearch.search.fragments.FilterFragment;
 import com.codepath.nytimessearch.search.models.Article;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.JsonHttpResponseHandler;
@@ -29,17 +33,15 @@ import java.util.List;
 
 import cz.msebera.android.httpclient.Header;
 
-public class SearchActivity extends AppCompatActivity {
+public class SearchActivity extends AppCompatActivity
+        implements FilterFragment.OnFragmentInteractionListener {
 
     private final String INDEX_URL = "https://api.nytimes.com/svc/search/v2/articlesearch.json";
     private final String API_KEY = "bfacca665da24f8a8770db74acbe5039";
 
     List<Article> articles;
     ArticleArrayAdapter adapter;
-
-    EditText etQuery;
     GridView gvResults;
-    Button btnSearch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,10 +53,7 @@ public class SearchActivity extends AppCompatActivity {
     }
 
     private void setupViews() {
-        etQuery = (EditText) findViewById(R.id.etQuery);
         gvResults = (GridView) findViewById(R.id.gvResults);
-        btnSearch = (Button) findViewById(R.id.btnSearch);
-
         articles = new ArrayList<>();
         adapter = new ArticleArrayAdapter(this, articles);
         gvResults.setAdapter(adapter);
@@ -74,30 +73,53 @@ public class SearchActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_search, menu);
-        return true;
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        final SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
+        searchView.setQueryHint(getResources().getString(R.string.hint));
+        searchView.setOnQueryTextListener(new OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                // perform query here
+                onArticleSearch(query);
+
+                // workaround to avoid issues with some emulators and keyboard devices firing twice if a keyboard enter is used
+                // see https://code.google.com/p/android/issues/detail?id=24599
+                searchView.clearFocus();
+
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                return false;
+            }
+        });
+        return super.onCreateOptionsMenu(menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+        // Handle presses on the action bar items
+        switch (item.getItemId()) {
+            case R.id.settings:
+                openFilterFragment();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
-
-        return super.onOptionsItemSelected(item);
     }
 
-    public void onArticleSearch(View view) {
-        String query = etQuery.getText().toString();
+    private void openFilterFragment() {
+        FragmentManager fm = getSupportFragmentManager();
+        FilterFragment filterFragment = FilterFragment.newInstance();
+        filterFragment.show(fm, "fragment_filter");
+    }
 
+    private void onArticleSearch(String query) {
         AsyncHttpClient client = new AsyncHttpClient();
         RequestParams params = new RequestParams();
         params.put("api-key", API_KEY);
+        params.put("q", query);
         client.get(INDEX_URL, params, new JsonHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
@@ -105,6 +127,7 @@ public class SearchActivity extends AppCompatActivity {
 
                 try {
                     articleJsonResults = response.getJSONObject("response").getJSONArray("docs");
+                    articles.clear();
                     articles.addAll(Article.fromJsonArray(articleJsonResults));
                     adapter.notifyDataSetChanged();
                 } catch (JSONException e) {
@@ -112,5 +135,9 @@ public class SearchActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    public void onFragmentInteraction() {
+        Toast.makeText(this, "Fragment Save", Toast.LENGTH_SHORT).show();
     }
 }
