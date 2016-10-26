@@ -8,17 +8,18 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.SearchView;
 import android.support.v7.widget.SearchView.OnQueryTextListener;
 import android.support.v7.widget.Toolbar;
+import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.GridView;
-import android.widget.Toast;
 
 import com.codepath.nytimessearch.R;
 import com.codepath.nytimessearch.search.adapters.ArticleArrayAdapter;
 import com.codepath.nytimessearch.search.fragments.FilterFragment;
 import com.codepath.nytimessearch.search.models.Article;
+import com.codepath.nytimessearch.search.models.Filter;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.JsonHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
@@ -38,8 +39,13 @@ public class SearchActivity extends AppCompatActivity
 
     private final String INDEX_URL = "https://api.nytimes.com/svc/search/v2/articlesearch.json";
     private final String API_KEY = "bfacca665da24f8a8770db74acbe5039";
+    private final String ARTS = "Arts";
+    private final String FASHION = "Fashion & Style";
+    private final String SPORTS = "Sports";
 
     List<Article> articles;
+    String defaultQuery;
+    Filter defaultFilter;
     ArticleArrayAdapter adapter;
     GridView gvResults;
 
@@ -53,8 +59,10 @@ public class SearchActivity extends AppCompatActivity
     }
 
     private void setupViews() {
-        gvResults = (GridView) findViewById(R.id.gvResults);
         articles = new ArrayList<>();
+        defaultQuery = new String("");
+        defaultFilter = null;
+        gvResults = (GridView) findViewById(R.id.gvResults);
         adapter = new ArticleArrayAdapter(this, articles);
         gvResults.setAdapter(adapter);
 
@@ -80,7 +88,7 @@ public class SearchActivity extends AppCompatActivity
             @Override
             public boolean onQueryTextSubmit(String query) {
                 // perform query here
-                onArticleSearch(query);
+                onArticleSearch(query, defaultFilter);
 
                 // workaround to avoid issues with some emulators and keyboard devices firing twice if a keyboard enter is used
                 // see https://code.google.com/p/android/issues/detail?id=24599
@@ -111,15 +119,19 @@ public class SearchActivity extends AppCompatActivity
 
     private void openFilterFragment() {
         FragmentManager fm = getSupportFragmentManager();
-        FilterFragment filterFragment = FilterFragment.newInstance();
+        FilterFragment filterFragment = FilterFragment.newInstance(defaultFilter);
         filterFragment.show(fm, "fragment_filter");
     }
 
-    private void onArticleSearch(String query) {
+    private void onArticleSearch(String query, Filter filter) {
+        defaultQuery = query;
         AsyncHttpClient client = new AsyncHttpClient();
         RequestParams params = new RequestParams();
         params.put("api-key", API_KEY);
-        params.put("q", query);
+        if (!defaultQuery.isEmpty()) {
+            params.put("q", defaultQuery);
+        }
+        setFilter(params, filter);
         client.get(INDEX_URL, params, new JsonHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
@@ -137,7 +149,44 @@ public class SearchActivity extends AppCompatActivity
         });
     }
 
-    public void onFragmentInteraction() {
-        Toast.makeText(this, "Fragment Save", Toast.LENGTH_SHORT).show();
+    private void setFilter(RequestParams params, Filter filter) {
+        if (filter == null) {
+            return;
+        }
+        String beginDate = String.valueOf(filter.getYear())
+                + String.format("%02d", filter.getMonth())
+                + String.format("%02d", filter.getDay());
+        params.put("begin_date", beginDate);
+        params.put("sort", filter.getSortOrder().toLowerCase());
+        String newsDeskvalues = getNewsDeskValues(filter);
+        if (!newsDeskvalues.isEmpty()) {
+            params.put("fq", "news_desk:(" + newsDeskvalues + ")");
+        }
+    }
+
+    private String getNewsDeskValues(Filter filter) {
+        List<String> newsDeskValues = new ArrayList<>();
+        if (filter.getIsArts() != 0) {
+            newsDeskValues.add(quotedString(ARTS));
+        }
+        if (filter.getIsFashion() != 0) {
+            newsDeskValues.add(quotedString(FASHION));
+        }
+        if (filter.getIsSports() != 0) {
+            newsDeskValues.add(quotedString(SPORTS));
+        }
+        if (newsDeskValues.isEmpty()) {
+            return new String("");
+        }
+        return TextUtils.join(" ", newsDeskValues);
+    }
+
+    private String quotedString(String str) {
+        return "\"" + str + "\"";
+    }
+
+    public void onFragmentInteraction(Filter filter) {
+        defaultFilter = filter;
+        onArticleSearch(defaultQuery, defaultFilter);
     }
 }
