@@ -18,7 +18,7 @@ The following **required** functionality is completed:
 * [x] Subsequent searches have any filters applied to the search results
 * [x] User can tap on any image in results to see the full text of article **full-screen**
 * [ ] User can **scroll down to see more articles**. The maximum number of articles is limited by the API search.
-* [ ] User can **share an article link** to their friends or email it to themselves
+* [x] User can **share an article link** to their friends or email it to themselves
 
 The following **optional** features are implemented:
 
