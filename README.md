@@ -15,7 +15,7 @@ The following **required** functionality is completed:
   * [x] Begin Date (using a date picker)
   * [x] News desk values (Arts, Fashion & Style, Sports)
   * [x] Sort order (oldest or newest)
-* [ ] Subsequent searches have any filters applied to the search results
+* [x] Subsequent searches have any filters applied to the search results
 * [x] User can tap on any image in results to see the full text of article **full-screen**
 * [ ] User can **scroll down to see more articles**. The maximum number of articles is limited by the API search.
 * [ ] User can **share an article link** to their friends or email it to themselves
