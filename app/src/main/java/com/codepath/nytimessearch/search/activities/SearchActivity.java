@@ -2,6 +2,7 @@ package com.codepath.nytimessearch.search.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -14,10 +15,12 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.GridView;
+import android.widget.Toast;
 
 import com.codepath.nytimessearch.R;
 import com.codepath.nytimessearch.search.adapters.ArticleArrayAdapter;
 import com.codepath.nytimessearch.search.fragments.FilterFragment;
+import com.codepath.nytimessearch.search.listeners.EndlessScrollListener;
 import com.codepath.nytimessearch.search.models.Article;
 import com.codepath.nytimessearch.search.models.Filter;
 import com.loopj.android.http.AsyncHttpClient;
@@ -48,6 +51,21 @@ public class SearchActivity extends AppCompatActivity
     Filter defaultFilter;
     ArticleArrayAdapter adapter;
     GridView gvResults;
+    Handler handler;
+    Runnable runnableCode;
+    EndlessScrollListener scrollListener;
+
+    class RunnableCode implements Runnable {
+        private int page;
+
+        public RunnableCode(int nextPage) {
+            page = nextPage;
+        }
+
+        public void run() {
+            SearchActivity.this.loadNextDataFromApi(page);
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +77,7 @@ public class SearchActivity extends AppCompatActivity
     }
 
     private void setupViews() {
+        handler = new Handler();
         articles = new ArrayList<>();
         defaultQuery = new String("");
         defaultFilter = null;
@@ -73,6 +92,48 @@ public class SearchActivity extends AppCompatActivity
                 Article article = articles.get(i);
                 intent.putExtra("article", Parcels.wrap(article));
                 startActivity(intent);
+            }
+        });
+
+        scrollListener = new EndlessScrollListener() {
+            @Override
+            public boolean onLoadMore(int page, int totalItemsCount) {
+                runnableCode = new RunnableCode(page);
+                handler.postDelayed(runnableCode, 1000);
+                return true;
+            }
+        };
+        gvResults.setOnScrollListener(scrollListener);
+    }
+
+    private void loadNextDataFromApi(int page) {
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        params.put("api-key", API_KEY);
+        if (!defaultQuery.isEmpty()) {
+            params.put("q", defaultQuery);
+        }
+        setFilter(params, defaultFilter);
+        params.put("page", page);
+        client.get(INDEX_URL, params, new JsonHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                JSONArray articleJsonResults = null;
+
+                try {
+                    articleJsonResults = response.getJSONObject("response").getJSONArray("docs");
+                    List<Article> newArticles = Article.fromJsonArray(articleJsonResults);
+                    if (newArticles.size() == 0) {
+                        Toast.makeText(
+                                SearchActivity.this, "No more article found", Toast.LENGTH_LONG
+                        ).show();
+                    } else {
+                        articles.addAll(Article.fromJsonArray(articleJsonResults));
+                        adapter.notifyDataSetChanged();
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
             }
         });
     }
@@ -123,7 +184,14 @@ public class SearchActivity extends AppCompatActivity
         filterFragment.show(fm, "fragment_filter");
     }
 
+    private void resetState() {
+        articles.clear();
+        adapter.notifyDataSetChanged();
+        scrollListener.resetState();
+    }
+
     private void onArticleSearch(String query, Filter filter) {
+        resetState();
         defaultQuery = query;
         AsyncHttpClient client = new AsyncHttpClient();
         RequestParams params = new RequestParams();
@@ -140,11 +208,21 @@ public class SearchActivity extends AppCompatActivity
                 try {
                     articleJsonResults = response.getJSONObject("response").getJSONArray("docs");
                     articles.clear();
-                    articles.addAll(Article.fromJsonArray(articleJsonResults));
-                    adapter.notifyDataSetChanged();
+                    List<Article> newArticles = Article.fromJsonArray(articleJsonResults);
+                    if (newArticles.size() == 0) {
+                        Toast.makeText(SearchActivity.this, "No article found", Toast.LENGTH_LONG).show();
+                    } else {
+                        articles.addAll(newArticles);
+                        adapter.notifyDataSetChanged();
+                    }
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
+            }
+
+            @Override
+            public void onFailure(int statusCode, Header[] headers, String responseString, Throwable throwable) {
+                Toast.makeText(SearchActivity.this, "Failed to load articles", Toast.LENGTH_LONG).show();
             }
         });
     }
