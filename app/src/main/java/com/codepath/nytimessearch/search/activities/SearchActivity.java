@@ -1,26 +1,27 @@
 package com.codepath.nytimessearch.search.activities;
 
-import android.content.Intent;
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
 import android.support.v7.widget.SearchView.OnQueryTextListener;
+import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.GridView;
 import android.widget.Toast;
 
 import com.codepath.nytimessearch.R;
-import com.codepath.nytimessearch.search.adapters.ArticleArrayAdapter;
+import com.codepath.nytimessearch.search.adapters.ArticlesAdapter;
 import com.codepath.nytimessearch.search.fragments.FilterFragment;
-import com.codepath.nytimessearch.search.listeners.EndlessScrollListener;
+import com.codepath.nytimessearch.search.listeners.EndlessRecyclerViewScrollListener;
 import com.codepath.nytimessearch.search.models.Article;
 import com.codepath.nytimessearch.search.models.Filter;
 import com.loopj.android.http.AsyncHttpClient;
@@ -30,8 +31,8 @@ import com.loopj.android.http.RequestParams;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.parceler.Parcels;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,11 +50,12 @@ public class SearchActivity extends AppCompatActivity
     List<Article> articles;
     String defaultQuery;
     Filter defaultFilter;
-    ArticleArrayAdapter adapter;
-    GridView gvResults;
+    RecyclerView recyclerView;
+    ArticlesAdapter adapter;
     Handler handler;
     Runnable runnableCode;
-    EndlessScrollListener scrollListener;
+    EndlessRecyclerViewScrollListener scrollListener;
+    StaggeredGridLayoutManager staggeredGridLayoutManager;
 
     class RunnableCode implements Runnable {
         private int page;
@@ -81,29 +83,22 @@ public class SearchActivity extends AppCompatActivity
         articles = new ArrayList<>();
         defaultQuery = new String("");
         defaultFilter = null;
-        gvResults = (GridView) findViewById(R.id.gvResults);
-        adapter = new ArticleArrayAdapter(this, articles);
-        gvResults.setAdapter(adapter);
-
-        gvResults.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        recyclerView = (RecyclerView) findViewById(R.id.rvResults);
+        adapter = new ArticlesAdapter(this, articles);
+        recyclerView.setHasFixedSize(true);
+        recyclerView.setAdapter(adapter);
+        staggeredGridLayoutManager =
+                new StaggeredGridLayoutManager(4, StaggeredGridLayoutManager.VERTICAL);
+        recyclerView.setLayoutManager(staggeredGridLayoutManager);
+        scrollListener = new EndlessRecyclerViewScrollListener(staggeredGridLayoutManager) {
             @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                Intent intent = new Intent(getApplicationContext(), ArticleActivity.class);
-                Article article = articles.get(i);
-                intent.putExtra("article", Parcels.wrap(article));
-                startActivity(intent);
-            }
-        });
-
-        scrollListener = new EndlessScrollListener() {
-            @Override
-            public boolean onLoadMore(int page, int totalItemsCount) {
+            public void onLoadMore(int page, int totalItemsCount, RecyclerView view) {
                 runnableCode = new RunnableCode(page);
                 handler.postDelayed(runnableCode, 1000);
-                return true;
             }
         };
-        gvResults.setOnScrollListener(scrollListener);
+        // Adds the scroll listener to RecyclerView
+        recyclerView.addOnScrollListener(scrollListener);
     }
 
     private void loadNextDataFromApi(int page) {
@@ -191,6 +186,10 @@ public class SearchActivity extends AppCompatActivity
     }
 
     private void onArticleSearch(String query, Filter filter) {
+        if (!isNetworkAvailable() || !isOnline()) {
+            Toast.makeText(this, "Network Unavailable", Toast.LENGTH_SHORT).show();
+            return;
+        }
         resetState();
         defaultQuery = query;
         AsyncHttpClient client = new AsyncHttpClient();
@@ -212,6 +211,7 @@ public class SearchActivity extends AppCompatActivity
                     if (newArticles.size() == 0) {
                         Toast.makeText(SearchActivity.this, "No article found", Toast.LENGTH_LONG).show();
                     } else {
+                        appendArticles(newArticles);
                         articles.addAll(newArticles);
                         adapter.notifyDataSetChanged();
                     }
@@ -225,6 +225,12 @@ public class SearchActivity extends AppCompatActivity
                 Toast.makeText(SearchActivity.this, "Failed to load articles", Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void appendArticles(List<Article> newArticles) {
+        int curSize = adapter.getItemCount();
+        articles.addAll(newArticles);
+        adapter.notifyItemRangeChanged(curSize, newArticles.size());
     }
 
     private void setFilter(RequestParams params, Filter filter) {
@@ -266,5 +272,23 @@ public class SearchActivity extends AppCompatActivity
     public void onFragmentInteraction(Filter filter) {
         defaultFilter = filter;
         onArticleSearch(defaultQuery, defaultFilter);
+    }
+
+    private Boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager
+                = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnectedOrConnecting();
+    }
+
+    public boolean isOnline() {
+        Runtime runtime = Runtime.getRuntime();
+        try {
+            Process ipProcess = runtime.exec("/system/bin/ping -c 1 8.8.8.8");
+            int     exitValue = ipProcess.waitFor();
+            return (exitValue == 0);
+        } catch (IOException e)          { e.printStackTrace(); }
+        catch (InterruptedException e) { e.printStackTrace(); }
+        return false;
     }
 }

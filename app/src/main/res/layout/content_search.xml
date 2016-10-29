@@ -14,10 +14,15 @@
     tools:showIn="@layout/activity_search"
     tools:context="com.codepath.nytimessearch.search.activities.SearchActivity">
 
-    <GridView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerHorizontal="true"
-        android:id="@+id/gvResults"
-        android:numColumns="2" />
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/rvResults"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!--<GridView-->
+        <!--android:layout_width="wrap_content"-->
+        <!--android:layout_height="wrap_content"-->
+        <!--android:layout_centerHorizontal="true"-->
+        <!--android:id="@+id/gvResults"-->
+        <!--android:numColumns="2" />-->
 </RelativeLayout>
