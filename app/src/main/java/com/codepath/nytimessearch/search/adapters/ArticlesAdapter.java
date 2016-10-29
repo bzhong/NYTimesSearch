@@ -124,7 +124,7 @@ public class ArticlesAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         ImageView imageView = viewHolder.thumbnail;
         TextView tvTitle = viewHolder.title;
 
-//        imageView.setImageResource(0);
+        imageView.setImageResource(0);
         tvTitle.setText(article.getHeadline());
 
         String thumbnail = article.getThumbNail();

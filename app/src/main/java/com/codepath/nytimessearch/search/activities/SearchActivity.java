@@ -212,8 +212,6 @@ public class SearchActivity extends AppCompatActivity
                         Toast.makeText(SearchActivity.this, "No article found", Toast.LENGTH_LONG).show();
                     } else {
                         appendArticles(newArticles);
-                        articles.addAll(newArticles);
-                        adapter.notifyDataSetChanged();
                     }
                 } catch (JSONException e) {
                     e.printStackTrace();
